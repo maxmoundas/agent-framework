@@ -86,17 +86,6 @@ with st.sidebar:
         AgentManager.clear_agent(st.session_state.session_id)
         st.rerun()
 
-    # Display routing info
-    st.header("Routing Diagnostics")
-    show_routing = st.checkbox("Show routing decisions", value=False)
-
-    if show_routing and "last_routing" in st.session_state:
-        st.subheader("Last Query Routing")
-        routing = st.session_state.last_routing
-        st.write(f"**Query:** {routing['query']}")
-        st.write(f"**Used tool:** {routing['used_tool']}")
-        st.write(f"**Tool name:** {routing['tool_name'] or 'N/A'}")
-
 # Input for new message
 prompt = st.chat_input("What would you like to know?")
 

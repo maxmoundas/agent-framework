@@ -2,6 +2,8 @@
 
 A flexible, extensible framework for building LLM-powered AI agents with tool integration capabilities.
 
+![Alt text](appscreenshot.png)
+
 ## Overview
 
 This agent framework allows you to:
