@@ -5,3 +5,5 @@ __pycache__
 # Gmail API credentials
 credentials.json
 token.pickle
+
+.agent_cache
