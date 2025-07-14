@@ -41,6 +41,14 @@ ANTHROPIC_API_KEY=your_anthropic_api_key
 NEWS_API_KEY=your_news_api_key  # for the news tool (optional), key from https://newsapi.org/docs/get-started
 ```
 
+4. For Gmail email functionality, set up OAuth2 credentials:
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the Gmail API for your project
+   - Go to "Credentials" and create an OAuth 2.0 Client ID
+   - Download the credentials JSON file and rename it to `credentials.json`
+   - Place `credentials.json` in the project root directory
+
 ## Project Structure
 
 ```
@@ -61,14 +69,16 @@ agent-framework/
 │   │   └── implementations/  # Individual tools
 │   │       ├── __init__.py
 │   │       ├── timestamp.py
-│   │       └── news.py
+│   │       ├── news.py
+│   │       └── email.py
 │   └── tests/
 │       ├── __init__.py
 │       ├── test_openai_connection.py
 │       ├── test_anthropic_connection.py
 │       ├── test_conversation_memory.py
 │       ├── test_news_tool.py
-│       └── test_timestamp_tool.py
+│       ├── test_timestamp_tool.py
+│       └── test_email_tool.py
 ├── app.py                    # Streamlit app
 ├── tool_test.py              # Tool testing interface
 ├── .env                      # Environment variables
@@ -78,10 +88,135 @@ agent-framework/
 
 ## Available Tools
 
-The framework comes with two pre-built tools:
+The framework comes with three pre-built tools:
 
 1. **TimestampTool**: Provides the current date and time in various formats
 2. **NewsTool**: Fetches real news headlines using the NewsAPI (requires API key)
+3. **GmailTool**: Send emails using Gmail API (requires OAuth2 setup)
+
+## How Tools Work
+
+The framework uses an intelligent two-stage decision process to determine when and how to use tools:
+
+### 1. Tool Registration and Discovery
+
+Tools are registered using a decorator pattern through the `ToolRegistry`:
+
+```python
+@ToolRegistry.register()
+class TimestampTool(BaseTool):
+    description = "Get the current date and time"
+    parameters = {
+        "format": {
+            "type": "string", 
+            "description": "Optional: The format for the timestamp (default, iso, unix)",
+            "required": False,
+        }
+    }
+```
+
+The `ToolRegistry` maintains a dictionary of all registered tools and provides methods to list tools, get specifications, and retrieve tool classes by name.
+
+### 2. Tool Presentation to the LLM
+
+Tools are dynamically presented to the LLM through the system message in the `Agent._build_system_message()` method. The system message includes:
+
+- **Tool descriptions**: What each tool does
+- **Parameter specifications**: What parameters each tool accepts  
+- **Usage instructions**: When and how to use tools
+- **JSON format requirements**: How to structure tool calls
+
+### 3. Query Routing and Tool Decision
+
+The framework uses a **two-stage decision process**:
+
+#### Stage 1: Query Routing (`QueryRouter`)
+The `QueryRouter` class determines whether a query should use tools by:
+
+1. Creating a prompt asking the LLM to decide if tools are needed
+2. Providing examples of when tools should/shouldn't be used
+3. Asking for a JSON decision with:
+   - `use_tool`: Boolean indicating if tools should be used
+   - `tool_name`: Specific tool to use (if any)
+   - `reasoning`: Explanation for the decision
+
+#### Stage 2: Tool Selection and Execution
+If the router determines tools should be used, the agent:
+
+1. **Enhances the system message** with specific tool directives
+2. **Gets LLM response** with lower temperature (0.2) for more consistent tool usage
+3. **Parses the response** using `OutputParser` to extract JSON tool calls
+4. **Executes the tool** and gets results
+5. **Generates final response** by having the LLM interpret the tool results
+
+### 4. Tool Execution Flow
+
+```python
+async def _process_with_tools(self, user_input, suggested_tool=None):
+    # 1. Get LLM to decide on tool usage
+    tool_response = await self.llm.generate(
+        system_message=enhanced_system_message,
+        prompt=user_input,
+        temperature=0.2,
+    )
+    
+    # 2. Parse the response
+    action = await self.parser.parse_json(tool_response)
+    
+    # 3. Execute the tool
+    if "tool" in action and "parameters" in action:
+        tool_name = action["tool"]
+        params = action["parameters"]
+        
+        tool_class = ToolRegistry.get_tool(tool_name)
+        tool = tool_class()
+        tool_result = await tool.execute(**params)
+        
+        # 4. Store tool result in memory
+        self.memory.add_tool_result(tool_name, tool_result)
+        
+        # 5. Generate final response using tool results
+        followup_prompt = f"""The user asked: "{user_input}"
+I've retrieved the following information:
+{tool_result}
+
+Please provide a helpful response to the user's query using this information."""
+        
+        final_response = await self.llm.generate(
+            prompt=followup_prompt, 
+            conversation_history=conversation_history
+        )
+```
+
+### 5. Memory and Context
+
+The framework maintains conversation memory and tool results separately:
+
+```python
+class ConversationMemory:
+    def __init__(self, max_turns=10):
+        self.messages = []  # Regular conversation
+        self.tool_results = []  # Tool execution results
+    
+    def add_tool_result(self, tool_name, result):
+        self.tool_results.append({
+            "tool": tool_name,
+            "result": result,
+            "timestamp": datetime.datetime.now().isoformat(),
+        })
+```
+
+Recent tool results are included in conversation context to provide continuity across interactions.
+
+### 6. Key Design Principles
+
+1. **Separation of Concerns**: Routing, execution, and response generation are separate
+2. **Flexible Tool Interface**: Tools inherit from `BaseTool` and define their own parameters
+3. **Robust Parsing**: The `OutputParser` handles various JSON formats and provides fallbacks
+4. **Memory Management**: Tool results are stored separately from conversation history
+5. **Error Handling**: Graceful fallbacks when tool execution fails
+
+This architecture allows the framework to intelligently decide when to use tools versus providing conversational responses, while maintaining a clean separation between tool logic and conversation flow.
 
 ## Usage
 
@@ -100,6 +235,30 @@ streamlit run tool_test.py
 ```
 
 This launches a simplified interface specifically for testing tool execution.
+
+### Running Tests
+
+All tests can be run from the project root directory:
+
+```bash
+# Test Gmail email tool (comprehensive test suite)
+python3 -m src.tests.test_email_tool
+
+# Test timestamp tool
+python3 -m src.tests.test_timestamp_tool
+
+# Test news tool
+python3 -m src.tests.test_news_tool
+
+# Test conversation memory
+python3 -m src.tests.test_conversation_memory
+
+# Test LLM connections
+python3 -m src.tests.test_openai_connection
+python3 -m src.tests.test_anthropic_connection
+```
+
+**Note**: The email tool test includes comprehensive coverage but the agent integration test (which sends real emails) is commented out by default. To test actual email sending, edit `src/tests/test_email_tool.py` and uncomment the agent integration test.
 
 ### Adding a New Tool
 

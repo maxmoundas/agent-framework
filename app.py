@@ -9,6 +9,7 @@ from src.core.agent_manager import AgentManager
 # Import your tools
 from src.tools.implementations.timestamp import TimestampTool
 from src.tools.implementations.news import NewsTool
+from src.tools.implementations.email import GmailTool
 
 # Load environment variables
 load_dotenv()

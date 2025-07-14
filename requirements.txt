@@ -7,3 +7,9 @@ asyncio
 # HTTP and API communication
 aiohttp
 certifi
+
+# Gmail API dependencies
+google-auth
+google-auth-oauthlib
+google-auth-httplib2
+google-api-python-client
