@@ -72,6 +72,20 @@ for message in st.session_state.messages:
                 with st.expander(f"Tool used: {message['tool_used']}"):
                     st.markdown(f"```\n{message['tool_result']}\n```")
 
+            # If this is an assistant message with router info, show the router decision
+            if message["role"] == "assistant" and "router_decision" in message:
+                with st.expander(f"Query Router Decision"):
+                    st.markdown(
+                        f"**Decision:** {message['router_decision']['use_tool']}"
+                    )
+                    if message["router_decision"]["tool_name"]:
+                        st.markdown(
+                            f"**Tool:** {message['router_decision']['tool_name']}"
+                        )
+                    st.markdown(
+                        f"**Reasoning:** {message['router_decision']['reasoning']}"
+                    )
+
 # Sidebar with controls
 with st.sidebar:
     st.header("Settings")
@@ -111,16 +125,37 @@ if prompt:
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
             try:
-                # Store tool count before processing to detect new tool usage
+                # Store counts before processing to detect new additions
                 tool_count_before = len(agent.memory.tool_results)
+                router_count_before = len(agent.memory.router_decisions)
 
                 response = run_async(agent.run(prompt))
 
                 # Check if any new tool results were added during this request
                 tool_was_used = len(agent.memory.tool_results) > tool_count_before
+                router_decision_made = (
+                    len(agent.memory.router_decisions) > router_count_before
+                )
 
                 assistant_message = {"role": "assistant", "content": response}
 
+                # Add router decision info if a new decision was made
+                if router_decision_made:
+                    recent_router = agent.memory.router_decisions[-1]
+                    assistant_message["router_decision"] = {
+                        "use_tool": recent_router["use_tool"],
+                        "tool_name": recent_router["tool_name"],
+                        "reasoning": recent_router["reasoning"],
+                    }
+
+                    # Show router decision in the UI
+                    with st.expander("Query Router Decision"):
+                        st.markdown(f"**Decision:** {recent_router['use_tool']}")
+                        if recent_router["tool_name"]:
+                            st.markdown(f"**Tool:** {recent_router['tool_name']}")
+                        st.markdown(f"**Reasoning:** {recent_router['reasoning']}")
+
+                # Add tool usage info if a tool was used
                 if tool_was_used:
                     # Get only the most recent tool result that was just added
                     recent_tool = agent.memory.tool_results[-1]

@@ -44,14 +44,13 @@ class QueryRouter:
     async def should_use_tools(self, query):
         """Determine if the query should use tools"""
         if not self.tools_info:
-            return False, None
-        
+            return False, None, None
+
         # Create a prompt for the router decision with examples
-        tool_descriptions = "\n".join([
-            f"- {tool['name']}: {tool['description']}" 
-            for tool in self.tools_info
-        ])
-        
+        tool_descriptions = "\n".join(
+            [f"- {tool['name']}: {tool['description']}" for tool in self.tools_info]
+        )
+
         router_prompt = f"""You are a query router that determines if a user query should be handled using specialized tools.
 
 Available tools:
@@ -83,14 +82,17 @@ Respond with a JSON object with the following format:
 "reasoning": "Brief explanation of your decision"
 }}
 """
-        
+
         # Get router decision
         response = await self.llm.generate(prompt=router_prompt)
-        
+
         try:
             # Parse the JSON response
             decision = json.loads(response)
-            return decision.get("use_tool", False), decision.get("tool_name")
+            use_tool = decision.get("use_tool", False)
+            tool_name = decision.get("tool_name")
+            reasoning = decision.get("reasoning", "No reasoning provided")
+            return use_tool, tool_name, reasoning
         except:
             # If JSON parsing fails, default to not using tools
-            return False, None
+            return False, None, "Failed to parse router decision"

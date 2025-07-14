@@ -96,23 +96,27 @@ class Agent:
         self.memory.add_user_message(user_input)
 
         # Check if we should use tools for this query
-        use_tool, suggested_tool = await self.router.should_use_tools(user_input)
+        use_tool, suggested_tool, reasoning = await self.router.should_use_tools(
+            user_input
+        )
+
+        # Store the router decision in memory
+        self.memory.add_router_decision(use_tool, suggested_tool, reasoning)
 
         # If tool execution is recommended and we have a specific tool
         if use_tool and suggested_tool:
             # Process with tools, which now includes LLM response to tool output
-            return await self._process_with_tools(user_input, suggested_tool)
+            return await self._process_with_tools(user_input, suggested_tool, reasoning)
         elif use_tool:
             # Generic tool execution needed
-            return await self._process_with_tools(user_input)
+            return await self._process_with_tools(user_input, None, reasoning)
         else:
             # Process as conversation, but include recent tool results for context
-            return await self._process_conversation(user_input)
+            return await self._process_conversation(user_input, reasoning)
 
     # src/core/agent.py - update the _process_conversation method
 
-
-    async def _process_conversation(self, user_input):
+    async def _process_conversation(self, user_input, reasoning=None):
         """Process user input as a normal conversation, but include relevant tool results"""
         # Get conversation history
         conversation_history = self.memory.get_conversation_history()
@@ -137,14 +141,17 @@ class Agent:
 
         # Get response from LLM using conversation history and any tool context
         response = await self.llm.generate(
-            system_message=conv_system_message, conversation_history=conversation_history
+            system_message=conv_system_message,
+            conversation_history=conversation_history,
         )
 
         # Add response to memory
         self.memory.add_assistant_message(response)
         return response
 
-    async def _process_with_tools(self, user_input, suggested_tool=None):
+    async def _process_with_tools(
+        self, user_input, suggested_tool=None, reasoning=None
+    ):
         """Process user input using tools and then have the LLM respond with the tool results"""
         # Get conversation history
         conversation_history = self.memory.get_conversation_history()
