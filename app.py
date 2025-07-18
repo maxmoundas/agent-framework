@@ -10,6 +10,7 @@ from src.core.agent_manager import AgentManager
 from src.tools.implementations.timestamp import TimestampTool
 from src.tools.implementations.news import NewsTool
 from src.tools.implementations.email import GmailTool
+from src.tools.implementations.qr_code import QRCodeTool
 
 # Load environment variables
 load_dotenv()
@@ -164,11 +165,43 @@ if prompt:
                     assistant_message["tool_used"] = recent_tool["tool"]
                     assistant_message["tool_result"] = recent_tool["result"]
 
-                    # Show tool usage in the UI
-                    with st.expander(f"Tool used: {recent_tool['tool']}"):
-                        st.markdown(f"```\n{recent_tool['result']}\n```")
+                                    # Show tool usage in the UI
+                with st.expander(f"Tool used: {recent_tool['tool']}"):
+                    tool_result = recent_tool['result']
+                    
+                    # Check if this is a QR code result with image
+                    if "[QR_IMAGE:" in tool_result:
+                        # Extract the image data
+                        import re
+                        qr_match = re.search(r'\[QR_IMAGE:(.*?)\]', tool_result)
+                        if qr_match:
+                            qr_image_data = qr_match.group(1)
+                            # Display the QR code image
+                            st.image(qr_image_data, caption="Generated QR Code", use_column_width=True)
+                            # Show the text without the image tag
+                            text_result = re.sub(r'\[QR_IMAGE:.*?\]', '', tool_result).strip()
+                            st.markdown(f"```\n{text_result}\n```")
+                        else:
+                            st.markdown(f"```\n{tool_result}\n```")
+                    else:
+                        st.markdown(f"```\n{tool_result}\n```")
 
-                st.markdown(response)
+                # Check if response contains QR image
+                if "[QR_IMAGE:" in response:
+                    # Extract the image data
+                    import re
+                    qr_match = re.search(r'\[QR_IMAGE:(.*?)\]', response)
+                    if qr_match:
+                        qr_image_data = qr_match.group(1)
+                        # Display the QR code image
+                        st.image(qr_image_data, caption="Generated QR Code", use_column_width=True)
+                        # Show the text without the image tag
+                        text_response = re.sub(r'\[QR_IMAGE:.*?\]', '', response).strip()
+                        st.markdown(text_response)
+                    else:
+                        st.markdown(response)
+                else:
+                    st.markdown(response)
 
                 # Add assistant response to chat history
                 st.session_state.messages.append(assistant_message)

@@ -88,11 +88,12 @@ agent-framework/
 
 ## Available Tools
 
-The framework comes with three pre-built tools:
+The framework comes with four pre-built tools:
 
 1. **TimestampTool**: Provides the current date and time in various formats
 2. **NewsTool**: Fetches real news headlines using the NewsAPI (requires API key)
 3. **GmailTool**: Send emails using Gmail API (requires OAuth2 setup)
+4. **QRCodeTool**: Generate QR codes for URLs, text, contact information, or WiFi credentials
 
 ## How Tools Work
 
@@ -250,6 +251,9 @@ python3 -m src.tests.test_timestamp_tool
 # Test news tool
 python3 -m src.tests.test_news_tool
 
+# Test QR code tool
+python3 -m src.tests.test_qr_code_tool
+
 # Test conversation memory
 python3 -m src.tests.test_conversation_memory
 
@@ -259,6 +263,25 @@ python3 -m src.tests.test_anthropic_connection
 ```
 
 **Note**: The email tool test includes comprehensive coverage but the agent integration test (which sends real emails) is commented out by default. To test actual email sending, edit `src/tests/test_email_tool.py` and uncomment the agent integration test.
+
+### QR Code Tool Features
+
+The QR Code Tool supports multiple types of QR codes:
+
+- **Text QR Codes**: Encode plain text content
+- **URL QR Codes**: Encode web addresses (automatically adds https:// if needed)
+- **Contact QR Codes**: Encode contact information in vCard format (requires name and phone)
+- **WiFi QR Codes**: Encode WiFi network credentials (requires SSID and password)
+
+The tool provides three output formats:
+- **description**: Detailed information about the generated QR code
+- **text**: Simple confirmation with content
+- **base64**: Base64 encoded image data for web applications
+
+Example usage in the chat interface:
+- "Generate a QR code for https://google.com"
+- "Create a contact QR code for John Doe with phone +1234567890"
+- "Make a WiFi QR code for network 'MyWiFi' with password 'password123'"
 
 ### Adding a New Tool
 
